@@ -15,11 +15,22 @@ pipeline {
         stage('Install PHP & Composer') {
             steps {
                 sh '''
-                sudo apt-get update
-                sudo apt-get install -y php php-cli php-mbstring php-xml unzip curl
-                curl -sS https://getcomposer.org/installer | php
-                sudo mv composer.phar /usr/local/bin/composer
-                composer install || true
+                # Check if PHP is installed
+                php -v || (
+                    apt-get update && \
+                    apt-get install -y php php-cli php-mbstring php-xml unzip curl
+                )
+
+                # Install Composer if not already present
+                if ! [ -x "$(command -v composer)" ]; then
+                    curl -sS https://getcomposer.org/installer | php
+                    mv composer.phar /usr/local/bin/composer
+                fi
+
+                # Install dependencies if composer.json exists
+                if [ -f "composer.json" ]; then
+                    composer install || true
+                fi
                 '''
             }
         }
