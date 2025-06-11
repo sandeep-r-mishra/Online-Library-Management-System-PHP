@@ -1,5 +1,9 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'php:8.2-cli' // or 'composer:latest' for Composer included
+        }
+    }
 
     environment {
         REPO_URL = 'https://github.com/sandeep-r-mishra/Online-Library-Management-System-PHP.git'
@@ -12,25 +16,13 @@ pipeline {
             }
         }
 
-        stage('Install PHP & Composer') {
+        stage('Install Composer') {
             steps {
                 sh '''
-                # Check if PHP is installed
-                php -v || (
-                    apt-get update && \
-                    apt-get install -y php php-cli php-mbstring php-xml unzip curl
-                )
-
-                # Install Composer if not already present
-                if ! [ -x "$(command -v composer)" ]; then
-                    curl -sS https://getcomposer.org/installer | php
-                    mv composer.phar /usr/local/bin/composer
-                fi
-
-                # Install dependencies if composer.json exists
-                if [ -f "composer.json" ]; then
-                    composer install || true
-                fi
+                php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+                php composer-setup.php
+                mv composer.phar /usr/local/bin/composer
+                composer install || true
                 '''
             }
         }
