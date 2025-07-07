@@ -1,8 +1,11 @@
 pipeline {
-    agent any  // Uses the default Jenkins node (no Docker)
+    agent any
 
     environment {
         REPO_URL = 'https://github.com/sandeep-r-mishra/Online-Library-Management-System-PHP.git'
+        DEPLOY_USER = 'root' // change if needed
+        DEPLOY_HOST = '192.168.74.129'
+        DEPLOY_PATH = '/var/www/html/library'
     }
 
     stages {
@@ -12,15 +15,12 @@ pipeline {
             }
         }
 
-        stage('Install Composer') {
+        stage('Install Composer Dependencies') {
             steps {
                 sh '''
-                if ! [ -x "$(command -v composer)" ]; then
-                    php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
-                    php composer-setup.php
-                    sudo mv composer.phar /usr/local/bin/composer
+                if [ -f composer.json ]; then
+                  composer install || true
                 fi
-                composer install || true
                 '''
             }
         }
@@ -33,22 +33,27 @@ pipeline {
             }
         }
 
-        stage('Run PHPUnit Tests') {
-            when {
-                expression { fileExists('vendor/bin/phpunit') }
-            }
+        stage('Deploy to Apache Server') {
             steps {
-                sh './vendor/bin/phpunit'
+                sh '''
+                echo "Deploying to Apache server..."
+
+                ssh ${DEPLOY_USER}@${DEPLOY_HOST} "rm -rf ${DEPLOY_PATH}/*"
+
+                rsync -avz --exclude=".git" ./ ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/
+
+                ssh ${DEPLOY_USER}@${DEPLOY_HOST} "chown -R apache:apache ${DEPLOY_PATH} && chmod -R 755 ${DEPLOY_PATH}"
+                '''
             }
         }
     }
 
     post {
         success {
-            echo '✅ Build and test successful!'
+            echo '✅ Application deployed successfully!'
         }
         failure {
-            echo '❌ Build or test failed.'
+            echo '❌ Deployment failed.'
         }
     }
 }
