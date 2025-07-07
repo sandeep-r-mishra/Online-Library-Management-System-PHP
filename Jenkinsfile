@@ -1,11 +1,12 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'php:8.2-cli' // or 'composer:latest' for Composer included
+        }
+    }
 
     environment {
         REPO_URL = 'https://github.com/sandeep-r-mishra/Online-Library-Management-System-PHP.git'
-        DEPLOY_USER = 'root' // change if needed
-        DEPLOY_HOST = '192.168.74.129'
-        DEPLOY_PATH = '/var/www/html/library'
     }
 
     stages {
@@ -15,12 +16,13 @@ pipeline {
             }
         }
 
-        stage('Install Composer Dependencies') {
+        stage('Install Composer') {
             steps {
                 sh '''
-                if [ -f composer.json ]; then
-                  composer install || true
-                fi
+                php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+                php composer-setup.php
+                mv composer.phar /usr/local/bin/composer
+                composer install || true
                 '''
             }
         }
@@ -33,27 +35,22 @@ pipeline {
             }
         }
 
-        stage('Deploy to Apache Server') {
+        stage('Run PHPUnit Tests') {
+            when {
+                expression { fileExists('vendor/bin/phpunit') }
+            }
             steps {
-                sh '''
-                echo "Deploying to Apache server..."
-
-                ssh ${DEPLOY_USER}@${DEPLOY_HOST} "rm -rf ${DEPLOY_PATH}/*"
-
-                rsync -avz --exclude=".git" ./ ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/
-
-                ssh ${DEPLOY_USER}@${DEPLOY_HOST} "chown -R apache:apache ${DEPLOY_PATH} && chmod -R 755 ${DEPLOY_PATH}"
-                '''
+                sh './vendor/bin/phpunit'
             }
         }
     }
 
     post {
         success {
-            echo '✅ Application deployed successfully!'
+            echo '✅ Build and test successful!'
         }
         failure {
-            echo '❌ Deployment failed.'
+            echo '❌ Build or test failed.'
         }
     }
 }
