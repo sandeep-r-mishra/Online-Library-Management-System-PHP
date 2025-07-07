@@ -3,8 +3,9 @@ pipeline {
 
     environment {
         REPO_URL = 'https://github.com/sandeep-r-mishra/Online-Library-Management-System-PHP.git'
-        DEPLOY_SERVER = 'username@192.168.74.129'
-        DEPLOY_PATH = '/var/www/html/library'  // adjust if different
+        DEPLOY_USER = 'root' // change if needed
+        DEPLOY_HOST = '192.168.74.129'
+        DEPLOY_PATH = '/var/www/html/library'
     }
 
     stages {
@@ -14,17 +15,11 @@ pipeline {
             }
         }
 
-        stage('Install Composer') {
+        stage('Install Composer Dependencies') {
             steps {
                 sh '''
-                if ! command -v composer &> /dev/null; then
-                    php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
-                    php composer-setup.php
-                    sudo mv composer.phar /usr/local/bin/composer
-                fi
-
                 if [ -f composer.json ]; then
-                    composer install || true
+                  composer install || true
                 fi
                 '''
             }
@@ -32,18 +27,22 @@ pipeline {
 
         stage('Lint PHP Files') {
             steps {
-                sh 'find . -name "*.php" -print0 | xargs -0 -n1 php -l'
+                sh '''
+                find . -name "*.php" -print0 | xargs -0 -n1 php -l
+                '''
             }
         }
 
         stage('Deploy to Apache Server') {
             steps {
                 sh '''
-                echo "Deploying to Apache at $DEPLOY_SERVER:$DEPLOY_PATH"
+                echo "Deploying to Apache server..."
 
-                ssh $DEPLOY_SERVER "sudo rm -rf $DEPLOY_PATH/*"
-                rsync -avz --exclude=".git" ./ $DEPLOY_SERVER:$DEPLOY_PATH/
-                ssh $DEPLOY_SERVER "sudo chown -R www-data:www-data $DEPLOY_PATH && sudo chmod -R 755 $DEPLOY_PATH"
+                ssh ${DEPLOY_USER}@${DEPLOY_HOST} "rm -rf ${DEPLOY_PATH}/*"
+
+                rsync -avz --exclude=".git" ./ ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/
+
+                ssh ${DEPLOY_USER}@${DEPLOY_HOST} "chown -R apache:apache ${DEPLOY_PATH} && chmod -R 755 ${DEPLOY_PATH}"
                 '''
             }
         }
@@ -51,7 +50,7 @@ pipeline {
 
     post {
         success {
-            echo '✅ Deployment successful! Visit: http://192.168.74.129:8082/'
+            echo '✅ Application deployed successfully!'
         }
         failure {
             echo '❌ Deployment failed.'
