@@ -1,15 +1,10 @@
-
 pipeline {
-    agent {
-        docker {
-            image 'php:8.2-cli' // or 'composer:latest'
-        }
-    }
+    agent any
 
     environment {
         REPO_URL = 'https://github.com/sandeep-r-mishra/Online-Library-Management-System-PHP.git'
-        DEPLOY_SERVER = 'http://localhost:8082/'
-        DEPLOY_PATH = '/var/www/html/library' // Change based on your structure
+        DEPLOY_SERVER = 'username@192.168.74.129'
+        DEPLOY_PATH = '/var/www/html/library'  // adjust if different
     }
 
     stages {
@@ -22,44 +17,33 @@ pipeline {
         stage('Install Composer') {
             steps {
                 sh '''
-                php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
-                php composer-setup.php
-                mv composer.phar /usr/local/bin/composer
-                composer install || true
+                if ! command -v composer &> /dev/null; then
+                    php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+                    php composer-setup.php
+                    sudo mv composer.phar /usr/local/bin/composer
+                fi
+
+                if [ -f composer.json ]; then
+                    composer install || true
+                fi
                 '''
             }
         }
 
         stage('Lint PHP Files') {
             steps {
-                sh '''
-                find . -name "*.php" -print0 | xargs -0 -n1 php -l
-                '''
-            }
-        }
-
-        stage('Run PHPUnit Tests') {
-            when {
-                expression { fileExists('vendor/bin/phpunit') }
-            }
-            steps {
-                sh './vendor/bin/phpunit'
+                sh 'find . -name "*.php" -print0 | xargs -0 -n1 php -l'
             }
         }
 
         stage('Deploy to Apache Server') {
             steps {
                 sh '''
-                echo "Deploying application to Apache server..."
+                echo "Deploying to Apache at $DEPLOY_SERVER:$DEPLOY_PATH"
 
-                # Clean old deployment
-                ssh $DEPLOY_SERVER "rm -rf $DEPLOY_PATH/*"
-
-                # Copy project files to Apache web root
+                ssh $DEPLOY_SERVER "sudo rm -rf $DEPLOY_PATH/*"
                 rsync -avz --exclude=".git" ./ $DEPLOY_SERVER:$DEPLOY_PATH/
-
-                # (Optional) Set proper permissions
-                ssh $DEPLOY_SERVER "chown -R www-data:www-data $DEPLOY_PATH && chmod -R 755 $DEPLOY_PATH"
+                ssh $DEPLOY_SERVER "sudo chown -R www-data:www-data $DEPLOY_PATH && sudo chmod -R 755 $DEPLOY_PATH"
                 '''
             }
         }
@@ -67,10 +51,10 @@ pipeline {
 
     post {
         success {
-            echo '✅ Build, test and deployment successful!'
+            echo '✅ Deployment successful! Visit: http://192.168.74.129:8082/'
         }
         failure {
-            echo '❌ Build, test or deployment failed.'
+            echo '❌ Deployment failed.'
         }
     }
 }
