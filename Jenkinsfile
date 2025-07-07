@@ -1,9 +1,5 @@
 pipeline {
-    agent {
-        docker {
-            image 'php:8.2-cli' // or 'composer:latest' for Composer included
-        }
-    }
+    agent any  // Uses the default Jenkins node (no Docker)
 
     environment {
         REPO_URL = 'https://github.com/sandeep-r-mishra/Online-Library-Management-System-PHP.git'
@@ -19,9 +15,11 @@ pipeline {
         stage('Install Composer') {
             steps {
                 sh '''
-                php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
-                php composer-setup.php
-                mv composer.phar /usr/local/bin/composer
+                if ! [ -x "$(command -v composer)" ]; then
+                    php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+                    php composer-setup.php
+                    sudo mv composer.phar /usr/local/bin/composer
+                fi
                 composer install || true
                 '''
             }
